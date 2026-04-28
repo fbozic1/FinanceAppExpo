@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import {
@@ -15,13 +15,20 @@ export function useTransactions(year: number, month: number) {
   const db = useSQLiteContext();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setLoading(true);
-    await syncRecurringTransactions(db, year, month);
-    const data = await getTransactionsByMonth(db, year, month);
-    setTransactions(data);
-    setLoading(false);
+    try {
+      await syncRecurringTransactions(db, year, month);
+      const data = await getTransactionsByMonth(db, year, month);
+      setTransactions(data);
+    } finally {
+      setLoading(false);
+      loadingRef.current = false;
+    }
   }, [db, year, month]);
 
   useEffect(() => { load(); }, [load]);

@@ -40,4 +40,16 @@ export async function migrateDb(db: SQLiteDatabase) {
       "ALTER TABLE transactions ADD COLUMN recurring_interval TEXT NOT NULL DEFAULT 'monthly'"
     );
   }
+
+  // Cleanup: remove duplicate recurring entries (keep lowest id per title/category/type/month)
+  await db.runAsync(`
+    DELETE FROM transactions
+    WHERE is_recurring = 1
+      AND id NOT IN (
+        SELECT MIN(id)
+        FROM transactions
+        WHERE is_recurring = 1
+        GROUP BY title, category, type, substr(date, 1, 7)
+      )
+  `);
 }

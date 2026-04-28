@@ -93,9 +93,12 @@ export async function getTransactionsByWeek(db: SQLiteDatabase): Promise<Transac
   );
 }
 
+// Prevents concurrent sync calls for the same month from creating duplicates
+const activeSyncs = new Set<string>();
+
 /**
  * Auto-generates recurring transactions for the target year/month if not yet present.
- * Called before loading transactions each time.
+ * Safe to call concurrently — second call for the same month is a no-op.
  */
 export async function syncRecurringTransactions(
   db: SQLiteDatabase,
@@ -105,50 +108,58 @@ export async function syncRecurringTransactions(
   const pad = (n: number) => String(n).padStart(2, '0');
   const monthPrefix = `${year}-${pad(month)}`;
 
-  // Get the latest recurring transaction per unique (title, category, type) combo
-  const templates = await db.getAllAsync<Transaction>(`
-    SELECT * FROM transactions
-    WHERE is_recurring = 1
-    GROUP BY title, category, type
-    HAVING MAX(date)
-  `);
+  if (activeSyncs.has(monthPrefix)) return;
+  activeSyncs.add(monthPrefix);
 
-  for (const tmpl of templates) {
-    if (tmpl.recurring_interval === 'yearly') {
-      // Only create if this is the same month as the original
-      const origMonth = tmpl.date.substring(5, 7);
-      if (origMonth !== pad(month)) continue;
-    }
+  try {
+    // Get the latest recurring transaction per unique (title, category, type) combo
+    const templates = await db.getAllAsync<Transaction>(`
+      SELECT * FROM transactions
+      WHERE is_recurring = 1
+        AND id IN (
+          SELECT MIN(id)
+          FROM transactions
+          WHERE is_recurring = 1
+          GROUP BY title, category, type
+        )
+    `);
 
-    // Check if an entry for this month already exists
-    const existing = await db.getFirstAsync<{ id: number }>(
-      `SELECT id FROM transactions
-       WHERE is_recurring = 1 AND title = ? AND category = ? AND type = ?
-       AND date LIKE ?`,
-      [tmpl.title, tmpl.category, tmpl.type, `${monthPrefix}%`]
-    );
+    for (const tmpl of templates) {
+      if (tmpl.recurring_interval === 'yearly') {
+        const origMonth = tmpl.date.substring(5, 7);
+        if (origMonth !== pad(month)) continue;
+      }
 
-    if (!existing) {
-      // Use same day-of-month as original, capped to last day of target month
-      const origDay = parseInt(tmpl.date.substring(8, 10), 10);
-      const lastDay = new Date(year, month, 0).getDate();
-      const day = Math.min(origDay, lastDay);
-      const date = new Date(year, month - 1, day, 12, 0, 0);
-
-      await db.runAsync(
-        `INSERT INTO transactions
-          (title, amount, type, category, date, note, is_recurring, recurring_interval)
-         VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
-        [
-          tmpl.title,
-          tmpl.amount,
-          tmpl.type,
-          tmpl.category,
-          date.toISOString(),
-          tmpl.note,
-          tmpl.recurring_interval,
-        ]
+      const existing = await db.getFirstAsync<{ id: number }>(
+        `SELECT id FROM transactions
+         WHERE is_recurring = 1 AND title = ? AND category = ? AND type = ?
+           AND date LIKE ?`,
+        [tmpl.title, tmpl.category, tmpl.type, `${monthPrefix}%`]
       );
+
+      if (!existing) {
+        const origDay = parseInt(tmpl.date.substring(8, 10), 10);
+        const lastDay = new Date(year, month, 0).getDate();
+        const day = Math.min(origDay, lastDay);
+        const date = new Date(year, month - 1, day, 12, 0, 0);
+
+        await db.runAsync(
+          `INSERT INTO transactions
+            (title, amount, type, category, date, note, is_recurring, recurring_interval)
+           VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
+          [
+            tmpl.title,
+            tmpl.amount,
+            tmpl.type,
+            tmpl.category,
+            date.toISOString(),
+            tmpl.note,
+            tmpl.recurring_interval,
+          ]
+        );
+      }
     }
+  } finally {
+    activeSyncs.delete(monthPrefix);
   }
 }
