@@ -52,4 +52,16 @@ export async function migrateDb(db: SQLiteDatabase) {
         GROUP BY title, category, type, substr(date, 1, 7)
       )
   `);
+
+  // Cleanup: remove duplicate Plaća income entries per month (keep lowest id, any is_recurring value)
+  await db.runAsync(`
+    DELETE FROM transactions
+    WHERE title = 'Plaća' AND type = 'income'
+      AND id NOT IN (
+        SELECT MIN(id)
+        FROM transactions
+        WHERE title = 'Plaća' AND type = 'income'
+        GROUP BY substr(date, 1, 7)
+      )
+  `);
 }

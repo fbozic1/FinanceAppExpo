@@ -111,7 +111,7 @@ export async function syncSalaryTransaction(
 
   const existing = await db.getFirstAsync<{ id: number; amount: number }>(
     `SELECT id, amount FROM transactions
-     WHERE title = 'Plaća' AND type = 'income' AND is_recurring = 1 AND date LIKE ?`,
+     WHERE title = 'Plaća' AND type = 'income' AND date LIKE ?`,
     [`${monthPrefix}%`]
   );
 
