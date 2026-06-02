@@ -100,6 +100,33 @@ export async function getAllTransactions(db: SQLiteDatabase): Promise<Transactio
   return db.getAllAsync<Transaction>('SELECT * FROM transactions ORDER BY date DESC');
 }
 
+export async function syncSalaryTransaction(
+  db: SQLiteDatabase,
+  year: number,
+  month: number,
+  salary: number
+): Promise<void> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const monthPrefix = `${year}-${pad(month)}`;
+
+  const existing = await db.getFirstAsync<{ id: number; amount: number }>(
+    `SELECT id, amount FROM transactions
+     WHERE title = 'Plaća' AND type = 'income' AND is_recurring = 1 AND date LIKE ?`,
+    [`${monthPrefix}%`]
+  );
+
+  if (!existing) {
+    const date = new Date(year, month - 1, 1, 8, 0, 0);
+    await db.runAsync(
+      `INSERT INTO transactions (title, amount, type, category, date, note, is_recurring, recurring_interval)
+       VALUES ('Plaća', ?, 'income', 'salary', ?, NULL, 1, 'monthly')`,
+      [salary, date.toISOString()]
+    );
+  } else if (existing.amount !== salary) {
+    await db.runAsync('UPDATE transactions SET amount = ? WHERE id = ?', [salary, existing.id]);
+  }
+}
+
 export async function getAllTimeTotals(
   db: SQLiteDatabase
 ): Promise<{ totalIncome: number; totalExpense: number }> {

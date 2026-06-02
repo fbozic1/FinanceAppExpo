@@ -11,10 +11,13 @@ import {
   deleteTransaction,
   stopRecurringTransaction,
   syncRecurringTransactions,
+  syncSalaryTransaction,
 } from '@/db/transactions';
+import { useFinanceStore } from '@/store/useFinanceStore';
 
 export function useTransactions(year: number, month: number) {
   const db = useSQLiteContext();
+  const { salary } = useFinanceStore();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(false);
@@ -25,13 +28,17 @@ export function useTransactions(year: number, month: number) {
     setLoading(true);
     try {
       await syncRecurringTransactions(db, year, month);
+      const now = new Date();
+      if (salary > 0 && year === now.getFullYear() && month === now.getMonth() + 1) {
+        await syncSalaryTransaction(db, year, month, salary);
+      }
       const data = await getTransactionsByMonth(db, year, month);
       setTransactions(data);
     } finally {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, [db, year, month]);
+  }, [db, year, month, salary]);
 
   useEffect(() => { load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));

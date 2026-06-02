@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/colors';
 import { useFinanceStore, formatCurrency } from '@/store/useFinanceStore';
-import { useTransactions, useRecentTransactions } from '@/hooks/useTransactions';
+import { useTransactions, useRecentTransactions, useAllTimeBalance } from '@/hooks/useTransactions';
 import CategoryChart from '@/components/CategoryChart';
 import TransactionItem from '@/components/TransactionItem';
 import EmptyState from '@/components/EmptyState';
@@ -26,8 +26,7 @@ export default function DashboardScreen() {
 
   const { totalIncome, totalExpense, byCategory } = useTransactions(year, month);
   const recentTransactions = useRecentTransactions(5);
-
-  const balance = totalIncome - totalExpense;
+  const { balance } = useAllTimeBalance();
   const budgetPercent = salary > 0 ? Math.min(Math.round((totalExpense / salary) * 100), 100) : 0;
   const hasChart = Object.keys(byCategory).length > 0;
 
