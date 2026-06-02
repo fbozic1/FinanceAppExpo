@@ -170,14 +170,14 @@ export async function syncRecurringTransactions(
   activeSyncs.add(monthPrefix);
 
   try {
-    // Get the latest recurring transaction per unique (title, category, type) combo
+    // Get recurring templates — exclude salary (handled separately by syncSalaryTransaction)
     const templates = await db.getAllAsync<Transaction>(`
       SELECT * FROM transactions
-      WHERE is_recurring = 1
+      WHERE is_recurring = 1 AND category != 'salary'
         AND id IN (
           SELECT MIN(id)
           FROM transactions
-          WHERE is_recurring = 1
+          WHERE is_recurring = 1 AND category != 'salary'
           GROUP BY title, category, type
         )
     `);
