@@ -10,24 +10,58 @@ import { formatCurrency, useFinanceStore } from '@/store/useFinanceStore';
 type Props = {
   transaction: Transaction;
   onDelete?: (id: number) => void;
+  onStopRecurring?: (title: string, category: string, type: string) => void;
 };
 
-export default function TransactionItem({ transaction, onDelete }: Props) {
+export default function TransactionItem({ transaction, onDelete, onStopRecurring }: Props) {
   const { currency } = useFinanceStore();
   const cat = getCategoryById(transaction.category);
   const isIncome = transaction.type === 'income';
+  const isRecurring = transaction.is_recurring === 1;
 
   const handleLongPress = () => {
     if (!onDelete) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Alert.alert(
-      'Izbriši transakciju',
-      `Jesi li siguran da želiš izbrisati "${transaction.title}"?`,
-      [
-        { text: 'Odustani', style: 'cancel' },
-        { text: 'Izbriši', style: 'destructive', onPress: () => onDelete(transaction.id) },
-      ]
-    );
+
+    if (isRecurring && onStopRecurring) {
+      Alert.alert(
+        transaction.title,
+        'Što želiš napraviti s ovom transakcijom?',
+        [
+          { text: 'Odustani', style: 'cancel' },
+          {
+            text: 'Zaustavi ponavljanje',
+            onPress: () =>
+              Alert.alert(
+                'Zaustavi ponavljanje',
+                `Zaustavi automatsko ponavljanje za "${transaction.title}"? Postojeći unosi ostaju.`,
+                [
+                  { text: 'Odustani', style: 'cancel' },
+                  {
+                    text: 'Zaustavi',
+                    style: 'destructive',
+                    onPress: () => onStopRecurring(transaction.title, transaction.category, transaction.type),
+                  },
+                ]
+              ),
+          },
+          {
+            text: 'Izbriši ovaj unos',
+            style: 'destructive',
+            onPress: () => onDelete(transaction.id),
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        'Izbriši transakciju',
+        `Jesi li siguran da želiš izbrisati "${transaction.title}"?`,
+        [
+          { text: 'Odustani', style: 'cancel' },
+          { text: 'Izbriši', style: 'destructive', onPress: () => onDelete(transaction.id) },
+        ]
+      );
+    }
   };
 
   const date = new Date(transaction.date);
@@ -50,11 +84,14 @@ export default function TransactionItem({ transaction, onDelete }: Props) {
       <View style={styles.info}>
         <View style={styles.titleRow}>
           <Text style={styles.title} numberOfLines={1}>{transaction.title}</Text>
-          {transaction.is_recurring === 1 && (
+          {isRecurring && (
             <Ionicons name="repeat-outline" size={13} color={Colors.accent} />
           )}
         </View>
         <Text style={styles.category}>{cat?.label ?? transaction.category}</Text>
+        {transaction.note ? (
+          <Text style={styles.note} numberOfLines={1}>{transaction.note}</Text>
+        ) : null}
       </View>
 
       <View style={styles.right}>
@@ -100,6 +137,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.subtext,
     marginTop: 2,
+  },
+  note: {
+    fontSize: 11,
+    color: Colors.muted,
+    marginTop: 2,
+    fontStyle: 'italic',
   },
   right: {
     alignItems: 'flex-end',

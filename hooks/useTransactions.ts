@@ -6,8 +6,10 @@ import {
   type NewTransaction,
   getTransactionsByMonth,
   getRecentTransactions,
+  getAllTimeTotals,
   insertTransaction,
   deleteTransaction,
+  stopRecurringTransaction,
   syncRecurringTransactions,
 } from '@/db/transactions';
 
@@ -50,6 +52,15 @@ export function useTransactions(year: number, month: number) {
     [db, load]
   );
 
+  const stopRecurring = useCallback(
+    async (title: string, category: string, type: string) => {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      await stopRecurringTransaction(db, title, category, type, `${year}-${pad(month)}`);
+      await load();
+    },
+    [db, load, year, month]
+  );
+
   const totalIncome = transactions
     .filter((t) => t.type === 'income')
     .reduce((sum, t) => sum + t.amount, 0);
@@ -65,7 +76,7 @@ export function useTransactions(year: number, month: number) {
       return acc;
     }, {});
 
-  return { transactions, loading, add, remove, reload: load, totalIncome, totalExpense, byCategory };
+  return { transactions, loading, add, remove, stopRecurring, reload: load, totalIncome, totalExpense, byCategory };
 }
 
 export function useRecentTransactions(limit = 5) {
@@ -79,4 +90,18 @@ export function useRecentTransactions(limit = 5) {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   return transactions;
+}
+
+export function useAllTimeBalance() {
+  const db = useSQLiteContext();
+  const [totals, setTotals] = useState({ totalIncome: 0, totalExpense: 0 });
+
+  const load = useCallback(() => {
+    getAllTimeTotals(db).then(setTotals);
+  }, [db]);
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  return { ...totals, balance: totals.totalIncome - totals.totalExpense };
 }

@@ -67,6 +67,25 @@ export async function deleteTransaction(
   await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
 }
 
+export async function stopRecurringTransaction(
+  db: SQLiteDatabase,
+  title: string,
+  category: string,
+  type: string,
+  currentMonthPrefix: string  // e.g. '2026-07' — entries after this month get deleted
+): Promise<void> {
+  await db.runAsync(
+    `DELETE FROM transactions
+     WHERE title = ? AND category = ? AND type = ? AND is_recurring = 1
+       AND substr(date, 1, 7) > ?`,
+    [title, category, type, currentMonthPrefix]
+  );
+  await db.runAsync(
+    'UPDATE transactions SET is_recurring = 0 WHERE title = ? AND category = ? AND type = ? AND is_recurring = 1',
+    [title, category, type]
+  );
+}
+
 export async function getTransactionsByYear(
   db: SQLiteDatabase,
   year: number
@@ -79,6 +98,18 @@ export async function getTransactionsByYear(
 
 export async function getAllTransactions(db: SQLiteDatabase): Promise<Transaction[]> {
   return db.getAllAsync<Transaction>('SELECT * FROM transactions ORDER BY date DESC');
+}
+
+export async function getAllTimeTotals(
+  db: SQLiteDatabase
+): Promise<{ totalIncome: number; totalExpense: number }> {
+  const result = await db.getFirstAsync<{ totalIncome: number; totalExpense: number }>(
+    `SELECT
+      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS totalIncome,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS totalExpense
+     FROM transactions`
+  );
+  return { totalIncome: result?.totalIncome ?? 0, totalExpense: result?.totalExpense ?? 0 };
 }
 
 export async function getTransactionsByWeek(db: SQLiteDatabase): Promise<Transaction[]> {
@@ -125,6 +156,11 @@ export async function syncRecurringTransactions(
     `);
 
     for (const tmpl of templates) {
+      const tmplMonthPrefix = tmpl.date.substring(0, 7);
+
+      // Never generate entries for months before the template was created
+      if (monthPrefix < tmplMonthPrefix) continue;
+
       if (tmpl.recurring_interval === 'yearly') {
         const origMonth = tmpl.date.substring(5, 7);
         if (origMonth !== pad(month)) continue;

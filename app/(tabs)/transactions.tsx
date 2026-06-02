@@ -66,7 +66,7 @@ export default function TransactionsScreen() {
   const insets = useSafeAreaInsets();
   const searchRef = useRef<TextInput>(null);
 
-  const { transactions, remove } = useTransactions(year, month);
+  const { transactions, remove, stopRecurring } = useTransactions(year, month);
 
   const toggleSearch = () => {
     if (searchOpen) {
@@ -174,7 +174,7 @@ export default function TransactionsScreen() {
           )}
           renderItem={({ item, index, section }) => (
             <View style={styles.itemCard}>
-              <TransactionItem transaction={item} onDelete={remove} />
+              <TransactionItem transaction={item} onDelete={remove} onStopRecurring={stopRecurring} />
               {index < section.data.length - 1 && <View style={styles.separator} />}
             </View>
           )}

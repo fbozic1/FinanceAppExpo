@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/colors';
 import { useGoals } from '@/hooks/useGoals';
 import { useInsights } from '@/hooks/useInsights';
-import { useTransactions } from '@/hooks/useTransactions';
+import { useTransactions, useAllTimeBalance } from '@/hooks/useTransactions';
 import { useFinanceStore, formatCurrency } from '@/store/useFinanceStore';
 import GoalCard from '@/components/GoalCard';
 import EmptyState from '@/components/EmptyState';
@@ -27,6 +27,7 @@ export default function GoalsScreen() {
 
   const now = new Date();
   const { transactions } = useTransactions(now.getFullYear(), now.getMonth() + 1);
+  const { balance } = useAllTimeBalance();
 
   const firstGoal = goals[0];
   const { monthlySavings, monthsToGoal, categoryInsights } = useInsights(
@@ -64,30 +65,29 @@ export default function GoalsScreen() {
   };
 
   const savingsColor = monthlySavings >= 0 ? Colors.income : Colors.expense;
+  const balanceColor = balance >= 0 ? Colors.income : Colors.expense;
 
   return (
     <View style={[styles.safe, { paddingTop: insets.top }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.screenTitle}>Ciljevi štednje</Text>
 
-        {/* Monthly savings banner */}
-        {salary > 0 && (
-          <View style={[styles.savingsBanner, { borderColor: `${savingsColor}30` }]}>
-            <View style={[styles.savingsIcon, { backgroundColor: `${savingsColor}15` }]}>
-              <Ionicons
-                name={monthlySavings >= 0 ? 'trending-up-outline' : 'trending-down-outline'}
-                size={20}
-                color={savingsColor}
-              />
-            </View>
-            <View style={styles.savingsText}>
-              <Text style={styles.savingsLabel}>Trenutna uštedina</Text>
-              <Text style={[styles.savingsAmount, { color: savingsColor }]}>
-                {formatCurrency(monthlySavings, currency)} / mj.
-              </Text>
-            </View>
+        {/* Balance banner */}
+        <View style={[styles.savingsBanner, { borderColor: `${balanceColor}30` }]}>
+          <View style={[styles.savingsIcon, { backgroundColor: `${balanceColor}15` }]}>
+            <Ionicons
+              name={balance >= 0 ? 'wallet-outline' : 'trending-down-outline'}
+              size={20}
+              color={balanceColor}
+            />
           </View>
-        )}
+          <View style={styles.savingsText}>
+            <Text style={styles.savingsLabel}>Trenutna ušteđevina</Text>
+            <Text style={[styles.savingsAmount, { color: balanceColor }]}>
+              {formatCurrency(balance, currency)}
+            </Text>
+          </View>
+        </View>
 
         {/* Goals list */}
         {goals.length === 0 ? (
