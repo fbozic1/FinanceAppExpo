@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   SectionList,
   TextInput,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -63,10 +65,25 @@ export default function TransactionsScreen() {
   const [filter, setFilter] = useState<TxFilter>('all');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(now.getFullYear());
   const insets = useSafeAreaInsets();
   const searchRef = useRef<TextInput>(null);
 
   const { transactions, remove, stopRecurring } = useTransactions(year, month);
+
+  const openPicker = () => {
+    setPickerYear(year);
+    setPickerOpen(true);
+    Haptics.selectionAsync();
+  };
+
+  const selectMonth = (m: number) => {
+    setMonth(m);
+    setYear(pickerYear);
+    setPickerOpen(false);
+    Haptics.selectionAsync();
+  };
 
   const toggleSearch = () => {
     if (searchOpen) {
@@ -135,11 +152,66 @@ export default function TransactionsScreen() {
         <TouchableOpacity onPress={prevMonth} style={styles.arrowBtn}>
           <Ionicons name="chevron-back" size={18} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.monthText}>{MONTHS[month - 1]} {year}</Text>
+        <TouchableOpacity onPress={openPicker} style={styles.monthPickerBtn}>
+          <Text style={styles.monthText}>{MONTHS[month - 1]} {year}</Text>
+          <Ionicons name="chevron-down" size={14} color={Colors.subtext} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={nextMonth} style={styles.arrowBtn}>
           <Ionicons name="chevron-forward" size={18} color={Colors.text} />
         </TouchableOpacity>
       </View>
+
+      {/* Month/Year picker modal */}
+      <Modal visible={pickerOpen} transparent animationType="fade" onRequestClose={() => setPickerOpen(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setPickerOpen(false)}>
+          <Pressable style={styles.pickerContainer} onPress={() => {}}>
+            {/* Year row */}
+            <View style={styles.pickerYearRow}>
+              <TouchableOpacity
+                onPress={() => { setPickerYear((y) => y - 1); Haptics.selectionAsync(); }}
+                style={styles.arrowBtn}
+              >
+                <Ionicons name="chevron-back" size={18} color={Colors.text} />
+              </TouchableOpacity>
+              <Text style={styles.pickerYearText}>{pickerYear}</Text>
+              <TouchableOpacity
+                onPress={() => { setPickerYear((y) => y + 1); Haptics.selectionAsync(); }}
+                style={styles.arrowBtn}
+              >
+                <Ionicons name="chevron-forward" size={18} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Month grid */}
+            <View style={styles.monthGrid}>
+              {MONTHS.map((name, i) => {
+                const m = i + 1;
+                const isSelected = m === month && pickerYear === year;
+                const isCurrentReal = m === now.getMonth() + 1 && pickerYear === now.getFullYear();
+                return (
+                  <TouchableOpacity
+                    key={m}
+                    style={[
+                      styles.monthCell,
+                      isSelected && styles.monthCellSelected,
+                      isCurrentReal && !isSelected && styles.monthCellCurrent,
+                    ]}
+                    onPress={() => selectMonth(m)}
+                  >
+                    <Text style={[
+                      styles.monthCellText,
+                      isSelected && styles.monthCellTextSelected,
+                      isCurrentReal && !isSelected && { color: Colors.accent },
+                    ]}>
+                      {name.substring(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Filter chips */}
       <View style={styles.chips}>
@@ -233,6 +305,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
   },
+  monthPickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
   monthText: { fontSize: 14, fontWeight: '600', color: Colors.subtext },
   arrowBtn: {
     width: 30,
@@ -243,6 +323,61 @@ const styles = StyleSheet.create({
     borderColor: Colors.cardBorder,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickerContainer: {
+    backgroundColor: Colors.card,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    padding: 20,
+    width: 300,
+    gap: 16,
+  },
+  pickerYearRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerYearText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  monthCell: {
+    width: '30%',
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: Colors.background,
+    borderWidth: 1,
+    borderColor: Colors.cardBorder,
+    alignItems: 'center',
+    flexGrow: 1,
+  },
+  monthCellSelected: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+  },
+  monthCellCurrent: {
+    borderColor: Colors.accent,
+  },
+  monthCellText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.subtext,
+  },
+  monthCellTextSelected: {
+    color: '#fff',
   },
   chips: {
     flexDirection: 'row',
